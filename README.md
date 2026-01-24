@@ -23,12 +23,3 @@ This is a **Userscript / UI tweak** for Jellyfin Web:
 2. Install via a **Userscript manager** (e.g., Tampermonkey) **or inject using Jellyfin's classic JavaScript Injector plugin**, the most common method  
 3. Reload Jellyfin Web  
 4. During video playback, the **camera button** will appear in the Video OSD next to your rating/favorite buttons
-
----
-
-## Configuration
-
-You can adjust the automatic screenshot interval by editing the script:
-
-```javascript
-const AUTO_SCREENSHOT_INTERVAL_MS = 1000; // interval in milliseconds
