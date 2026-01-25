@@ -40,20 +40,20 @@ Follows the Windows Snipping Tool naming style, extended with the video title.
 
 Format:
 
-Screenshot YYYY-MM-DD HHMMSS videotitle.png
+Screenshot YYYY-MM-DD HHMMSS - videotitle.png
 
 (Every ":" will be parsed to " -" for naming)
 
 Experimental for TV Shows - Autoparsing: 
 
-Screenshot YYYY-MM-DD HHMMSS tvshowtitle - seasonumberepisodenumber - episodetitle.png
+Screenshot YYYY-MM-DD HHMMSS - tvshowtitle - seasonumberepisodenumber - episodetitle.png
 
 
 Example:
 
-Screenshot 2026-01-25 045602 Inception.png or Screenshot 2026-01-25 045602 John Wick - Chapter 2.png
+Screenshot 2026-01-25 045602 - Inception.png or Screenshot 2026-01-25 045602 - John Wick - Chapter 2.png
 
-Screenshot 2026-01-25 045602 Star Trek - Voyager - S07E21 - Friendship One.png
+Screenshot 2026-01-25 045602 - Star Trek - Voyager - S07E21 - Friendship One.png
 
 ---
 
