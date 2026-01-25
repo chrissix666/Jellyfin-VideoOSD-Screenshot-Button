@@ -23,3 +23,20 @@ This is a **Userscript / UI tweak** for Jellyfin Web:
 2. Install via a **Userscript manager** (e.g., Tampermonkey) **or inject using Jellyfin's classic JavaScript Injector plugin**, the most common method  
 3. Reload Jellyfin Web  
 4. During video playback, the **camera button** will appear in the Video OSD next to your rating/favorite buttons
+
+---
+
+## Downloads & File Naming
+
+Download folder:
+Uses the system's default Downloads folder.
+On Windows, this is the standard Windows Downloads directory of the current user.
+
+Default file naming:
+Follows the Windows Snipping Tool naming style, extended with the video title.
+
+Format:
+Screenshot YYYY-MM-DD HHMMSS <Video Title>
+
+Example:
+Screenshot 2026-01-25 045602 The Simpsons
