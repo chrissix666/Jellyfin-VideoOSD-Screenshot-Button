@@ -39,15 +39,20 @@ Default file naming:
 Follows the Windows Snipping Tool naming style, extended with the video title.
 
 Format:
+
 Screenshot YYYY-MM-DD HHMMSS videotitle.png
+
 (Every ":" will be parsed to " -" for naming)
+
 Experimental for TV Shows - Autoparsing: 
+
 Screenshot YYYY-MM-DD HHMMSS tvshowtitle - seasonumberepisodenumber - episodetitle.png
 
 
 Example:
 
 Screenshot 2026-01-25 045602 Inception.png
+
 Screenshot 2026-01-25 045602 Star Trek - Voyager - S07E21 - Friendship One.png
 
 ---
