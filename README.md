@@ -43,3 +43,7 @@ Screenshot YYYY-MM-DD HHMMSS <Video Title>
 
 Example:
 Screenshot 2026-01-25 045602 The Simpsons
+
+## Disclaimer for subtitles
+
+As far tested image based subtitles (PGSSUB, DVDSUB=VOBSUB, .sup, .sub/.idx) are displayed on the screenshots, text based (SUBRIP, .srt), not
