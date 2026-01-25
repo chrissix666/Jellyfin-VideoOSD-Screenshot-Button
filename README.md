@@ -39,10 +39,10 @@ Default file naming:
 Follows the Windows Snipping Tool naming style, extended with the video title.
 
 Format:
-Screenshot YYYY-MM-DD HHMMSS <Video Title>.png
+Screenshot YYYY-MM-DD HHMMSS <videotitle>.png
 (Every ":" will be parsed to " -" for naming)
 Experimental for TV Shows - Autoparsing: 
-Screenshot YYYY-MM-DD HHMMSS <TV Show Title> - <Seasonumber><Episodenumber> - <Episode Title>.png
+Screenshot YYYY-MM-DD HHMMSS <tvshowtitle> - <Seasonumber><Episodenumber> - <episodetitle>.png
 
 
 Example:
