@@ -45,7 +45,7 @@ Screenshot YYYY-MM-DD HHMMSS - videotitle.png
 
 (Every ":" will be parsed to " -" for naming)
 
-Experimental for TV Shows - Autoparsing: 
+Experimental Autoparsing for TV Shows: 
 
 Screenshot YYYY-MM-DD HHMMSS - tvshowtitle - seasonumberepisodenumber - episodetitle.png
 
