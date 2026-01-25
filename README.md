@@ -39,6 +39,8 @@ On Windows, this is the standard Windows Downloads directory of the current user
 Default file naming:
 Follows the Windows Snipping Tool naming style, extended with the video title.
 
+All data used for name generation is read from the browser HTML, which in turn comes from the Jellyfin database. The naming therefore has nothing to do with the source file names, but is based purely on the database.
+
 ### Format:
 
 Screenshot YYYY-MM-DD HHMMSS - videotitle.png
