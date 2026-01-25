@@ -11,7 +11,8 @@ Tested **only on Windows 11** with **Chrome**.
 - **Single click** → takes a screenshot of the current frame  
 - **Hold click** → takes screenshots continuously every 0.2 seconds (rapid-fire mode)  
 - **Double click** → toggles **auto mode**, taking a screenshot every second automatically  
-  - Auto mode is reset when double click again, leaving video, or page reload. On switching through videos playlists it stays on at the moment.
+  - Auto mode is reset to off when double click again, leaving video, or page reload.
+  - On switching through videos (shuffle, playlists, autoplay next) it stays on at the moment.
  
 ![Jellyfin Auto Screenshot Button](Screenshot.png)
 
