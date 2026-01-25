@@ -1,4 +1,3 @@
-
 (function () {
     'use strict';
 
@@ -12,6 +11,9 @@
     let autoIntervalId = null;
     let lastVideoRef = null;
 
+    /**********************
+     * STYLES
+     **********************/
     const ensureStyles = () => {
         if (document.getElementById('auto-screenshot-style')) return;
         const style = document.createElement('style');
@@ -33,25 +35,51 @@
     };
 
     const sanitize = str =>
-        str
-            .replace(/[\\/:*?"<>|]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
+        str.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 
+    /**********************
+     * LABEL PARSING
+     * Uses Page Title for file naming
+     * Year is now always removed
+     **********************/
     const getVideoLabel = video => {
-        if (video.title && video.title.trim()) return sanitize(video.title);
-        if (document.title && document.title.trim()) return sanitize(document.title);
-        if (video.currentSrc) {
-            try {
-                const url = new URL(video.currentSrc);
-                let name = url.pathname.split('/').pop() || '';
-                name = name.replace(/\.[^.]+$/, '');
-                if (name && !/^(master|index|playlist)$/i.test(name)) return sanitize(name);
-            } catch {}
+        // Find current pageTitle
+        const pageTitleEl = document.querySelector('h3.pageTitle') || 
+                            Array.from(document.querySelectorAll('[aria-hidden="true"]'))
+                                 .find(el => el.className.toLowerCase().includes('pagetitle'));
+
+        if (!pageTitleEl) return '';
+
+        let text = pageTitleEl.textContent.trim();
+
+        // --- Check for Episode first ---
+        // Pattern: ShowTitle - Sx:Ey - EpisodeName (Year optional)
+        const episodeMatch = text.match(/^(.*?)-\s*S(\d+)[\:-]?E(\d+)\s*-\s*(.*?)(?:\s*\(\d{4}\))?$/i);
+        if (episodeMatch) {
+            let showTitle = episodeMatch[1].trim();
+            // Replace ":" with " - " in ShowTitle only
+            showTitle = showTitle.replace(/\s*:\s*/g, ' - ');
+
+            const season = episodeMatch[2].padStart(2,'0');
+            const episode = episodeMatch[3].padStart(2,'0');
+            const episodeName = episodeMatch[4].trim();
+
+            // Episode detected → ignore year, format SxxEyy
+            return ` - ${showTitle} - S${season}E${episode} - ${episodeName}`;
         }
-        return 'video';
+
+        // --- Not an Episode ---
+        // Remove any year in parentheses if present
+        text = text.replace(/\s*\(\d{4}\)/, '');
+        // Replace ":" with " - " for non-episode titles
+        text = text.replace(/\s*:\s*/g, ' - ');
+
+        return ` - ${sanitize(text)}`;
     };
 
+    /**********************
+     * TAKE SCREENSHOT
+     **********************/
     const takeScreenshot = () => {
         const video = document.querySelector('video');
         if (!video || video.videoWidth === 0) return;
@@ -71,11 +99,14 @@
         const label = getVideoLabel(video);
 
         const link = document.createElement('a');
-        link.download = `Screenshot ${date} ${time} ${label}.png`;
+        link.download = `Screenshot ${date} ${time}${label}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
     };
 
+    /**********************
+     * AUTO MODE
+     **********************/
     const stopAutoMode = () => {
         autoMode = false;
         clearInterval(autoIntervalId);
@@ -96,6 +127,9 @@
         autoMode ? stopAutoMode() : startAutoMode();
     };
 
+    /**********************
+     * BUTTON
+     **********************/
     const ensureBtn = () => {
         if (!btn) {
             ensureStyles();
@@ -113,6 +147,7 @@
             let clickCount = 0;
             let clickTimer = null;
 
+            // Single / Double click
             btn.addEventListener('click', () => {
                 clickCount++;
                 if (clickTimer) clearTimeout(clickTimer);
@@ -123,6 +158,7 @@
                 }, 250);
             });
 
+            // Hold: immediate screenshot + repeat every 200ms
             btn.addEventListener('mousedown', () => {
                 if (autoMode || intervalId) return;
                 takeScreenshot();
@@ -140,6 +176,9 @@
         return btn;
     };
 
+    /**********************
+     * VIDEO CHANGE DETECTION
+     **********************/
     const checkVideoChange = () => {
         const video = document.querySelector('video');
         if (video !== lastVideoRef) {
@@ -148,6 +187,9 @@
         }
     };
 
+    /**********************
+     * INJECT BUTTON
+     **********************/
     const injectButton = () => {
         const favBtn = document.querySelector('.buttons.focuscontainer-x > .btnUserRating');
         if (!favBtn || !favBtn.parentNode) return false;
