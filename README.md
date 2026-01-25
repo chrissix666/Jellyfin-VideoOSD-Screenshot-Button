@@ -51,7 +51,7 @@ Screenshot YYYY-MM-DD HHMMSS tvshowtitle - seasonumberepisodenumber - episodetit
 
 Example:
 
-Screenshot 2026-01-25 045602 Inception.png
+Screenshot 2026-01-25 045602 Inception.png or Screenshot 2026-01-25 045602 John Wick - Chapter 2.png
 
 Screenshot 2026-01-25 045602 Star Trek - Voyager - S07E21 - Friendship One.png
 
