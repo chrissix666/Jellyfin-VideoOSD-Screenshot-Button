@@ -39,7 +39,7 @@ On Windows, this is the standard Windows Downloads directory of the current user
 Default file naming:
 Follows the Windows Snipping Tool naming style, extended with the video title.
 
-Format:
+# Format:
 
 Screenshot YYYY-MM-DD HHMMSS - videotitle.png
 
@@ -50,7 +50,7 @@ Experimental for TV Shows - Autoparsing:
 Screenshot YYYY-MM-DD HHMMSS - tvshowtitle - seasonumberepisodenumber - episodetitle.png
 
 
-Example:
+# Example:
 
 Screenshot 2026-01-25 045602 - Inception.png or Screenshot 2026-01-25 045602 - John Wick - Chapter 2.png
 
