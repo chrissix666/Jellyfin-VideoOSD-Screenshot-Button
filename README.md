@@ -13,7 +13,8 @@ Tested **only on Windows 11** with **Chrome**.
 - **Double click** → toggles **auto mode**, taking a screenshot every second automatically  
   - Auto mode is reset when double click again, leaving/switching video, or page reload
  
-!(screenshot.png)
+![Jellyfin Fullscreen Button in Top Navigation Bar](screenshot.png)
+
 
 ---
 
