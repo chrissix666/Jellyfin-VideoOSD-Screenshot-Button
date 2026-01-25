@@ -12,6 +12,8 @@ Tested **only on Windows 11** with **Chrome**.
 - **Hold click** → takes screenshots continuously every 0.2 seconds (rapid-fire mode)  
 - **Double click** → toggles **auto mode**, taking a screenshot every second automatically  
   - Auto mode is reset when double click again, leaving/switching video, or page reload
+ 
+screenshot.png
 ---
 
 ## Installation
