@@ -2,7 +2,7 @@
 
 Adds a screenshot button to the **Jellyfin Web UI video player**, available in the **Video OSD** during playback.
 
-Tested **only on Windows 11** with **Chrome**.
+Tested **only on Windows 11** with **Chrome** Jellyfin Web 10.10.7
 
 ---
 
