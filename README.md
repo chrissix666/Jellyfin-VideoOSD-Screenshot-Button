@@ -62,7 +62,8 @@ Screenshot 2026-01-25 045602 - Star Trek - Voyager - S07E21 - Friendship One.png
 
 ## Disclaimer for Subtitles
 
-As far tested image based subtitles (PGSSUB, DVDSUB=VOBSUB, .sup, .sub/.idx) are displayed on the screenshots, text based (SUBRIP, .srt), not
+As far tested image based subtitles (PGSSUB, DVDSUB=VOBSUB, .sup, .sub/.idx) are displayed on the screenshots,  
+text based (SUBRIP, .srt) are not.
 
 ---
 
