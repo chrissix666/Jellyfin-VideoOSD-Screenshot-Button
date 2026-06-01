@@ -4,7 +4,7 @@
     /**********************
      * CONFIG
      **********************/
-    const AUTO_SCREENSHOT_INTERVAL_MS = 1000; // ⬅️ hier anpassen
+    const AUTO_SCREENSHOT_INTERVAL_MS = 1000;
 
     let btn = null;
     let autoMode = false;
@@ -16,6 +16,7 @@
      **********************/
     const ensureStyles = () => {
         if (document.getElementById('auto-screenshot-style')) return;
+
         const style = document.createElement('style');
         style.id = 'auto-screenshot-style';
         style.textContent = `
@@ -27,6 +28,11 @@
             80%  { transform: rotate(4deg); }
             100% { transform: rotate(0deg); }
         }
+
+        .auto-screenshot-click {
+            animation: autoscreenshot-wiggle 0.6s ease-in-out;
+        }
+
         .auto-screenshot-active {
             animation: autoscreenshot-wiggle 1s ease-in-out infinite;
         }
@@ -38,40 +44,59 @@
         str.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 
     /**********************
+     * ANIMATION
+     **********************/
+    const getIcon = () => btn?.querySelector('.material-symbols-outlined');
+
+    const animateSingleShot = () => {
+        const icon = getIcon();
+        if (!icon || autoMode) return;
+
+        icon.classList.remove('auto-screenshot-click');
+        void icon.offsetWidth;
+        icon.classList.add('auto-screenshot-click');
+    };
+
+    const startWiggle = () => {
+        const icon = getIcon();
+        if (!icon) return;
+
+        icon.classList.remove('auto-screenshot-click');
+        icon.classList.add('auto-screenshot-active');
+    };
+
+    const stopWiggle = () => {
+        const icon = getIcon();
+        if (!icon) return;
+
+        icon.classList.remove('auto-screenshot-active');
+    };
+
+    /**********************
      * LABEL PARSING
-     * Uses Page Title for file naming
-     * Year is now always removed
      **********************/
     const getVideoLabel = video => {
-        // Find current pageTitle
-        const pageTitleEl = document.querySelector('h3.pageTitle') || 
-                            Array.from(document.querySelectorAll('[aria-hidden="true"]'))
-                                 .find(el => el.className.toLowerCase().includes('pagetitle'));
+        const pageTitleEl = document.querySelector('h3.pageTitle') ||
+            Array.from(document.querySelectorAll('[aria-hidden="true"]'))
+                .find(el => el.className.toLowerCase().includes('pagetitle'));
 
         if (!pageTitleEl) return '';
 
         let text = pageTitleEl.textContent.trim();
 
-        // --- Check for Episode first ---
-        // Pattern: ShowTitle - Sx:Ey - EpisodeName (Year optional)
         const episodeMatch = text.match(/^(.*?)-\s*S(\d+)[\:-]?E(\d+)\s*-\s*(.*?)(?:\s*\(\d{4}\))?$/i);
         if (episodeMatch) {
             let showTitle = episodeMatch[1].trim();
-            // Replace ":" with " - " in ShowTitle only
             showTitle = showTitle.replace(/\s*:\s*/g, ' - ');
 
-            const season = episodeMatch[2].padStart(2,'0');
-            const episode = episodeMatch[3].padStart(2,'0');
+            const season = episodeMatch[2].padStart(2, '0');
+            const episode = episodeMatch[3].padStart(2, '0');
             const episodeName = episodeMatch[4].trim();
 
-            // Episode detected → ignore year, format SxxEyy
             return ` - ${showTitle} - S${season}E${episode} - ${episodeName}`;
         }
 
-        // --- Not an Episode ---
-        // Remove any year in parentheses if present
         text = text.replace(/\s*\(\d{4}\)/, '');
-        // Replace ":" with " - " for non-episode titles
         text = text.replace(/\s*:\s*/g, ' - ');
 
         return ` - ${sanitize(text)}`;
@@ -111,16 +136,14 @@
         autoMode = false;
         clearInterval(autoIntervalId);
         autoIntervalId = null;
-        const icon = btn?.querySelector('.material-symbols-outlined');
-        if (icon) icon.classList.remove('auto-screenshot-active');
+        stopWiggle();
     };
 
     const startAutoMode = () => {
         autoMode = true;
+        startWiggle();
         takeScreenshot();
         autoIntervalId = setInterval(takeScreenshot, AUTO_SCREENSHOT_INTERVAL_MS);
-        const icon = btn?.querySelector('.material-symbols-outlined');
-        if (icon) icon.classList.add('auto-screenshot-active');
     };
 
     const toggleAutoMode = () => {
@@ -147,32 +170,46 @@
             let clickCount = 0;
             let clickTimer = null;
 
-            // Single / Double click
             btn.addEventListener('click', () => {
                 clickCount++;
+
                 if (clickTimer) clearTimeout(clickTimer);
 
                 clickTimer = setTimeout(() => {
-                    if (clickCount === 2) toggleAutoMode();
+                    if (clickCount === 1) {
+                        animateSingleShot();
+                    } else if (clickCount === 2) {
+                        toggleAutoMode();
+                    }
+
                     clickCount = 0;
                 }, 250);
             });
 
-            // Hold: immediate screenshot + repeat every 200ms
             btn.addEventListener('mousedown', () => {
                 if (autoMode || intervalId) return;
+
+                startWiggle();
                 takeScreenshot();
+
                 intervalId = setInterval(takeScreenshot, 200);
             });
 
             const stopInterval = () => {
+                if (!intervalId) return;
+
                 clearInterval(intervalId);
                 intervalId = null;
+
+                if (!autoMode) {
+                    stopWiggle();
+                }
             };
 
             btn.addEventListener('mouseup', stopInterval);
             btn.addEventListener('mouseleave', stopInterval);
         }
+
         return btn;
     };
 
@@ -181,8 +218,10 @@
      **********************/
     const checkVideoChange = () => {
         const video = document.querySelector('video');
+
         if (video !== lastVideoRef) {
             lastVideoRef = video;
+
             if (autoMode) stopAutoMode();
         }
     };
@@ -193,10 +232,13 @@
     const injectButton = () => {
         const favBtn = document.querySelector('.buttons.focuscontainer-x > .btnUserRating');
         if (!favBtn || !favBtn.parentNode) return false;
+
         const container = favBtn.parentNode;
+
         if (!container.querySelector('.btnScreenshot')) {
             container.insertBefore(ensureBtn(), favBtn);
         }
+
         return true;
     };
 
@@ -204,6 +246,7 @@
         injectButton();
         checkVideoChange();
     });
+
     observer.observe(document.body, { childList: true, subtree: true });
 
     const pollInterval = setInterval(() => {
