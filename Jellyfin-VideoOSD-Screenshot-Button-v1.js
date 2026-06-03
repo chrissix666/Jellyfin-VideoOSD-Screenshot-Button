@@ -1,19 +1,40 @@
 (function () {
     'use strict';
 
-    /**********************
-     * CONFIG
-     **********************/
+    const ADDON_ID = 'screenshotButton';
+    const ADDON_NAME = 'Screenshot Button';
+
     const AUTO_SCREENSHOT_INTERVAL_MS = 1000;
+    const CUSTOMS_API_NAME = 'JellyfinVideoOSDCustomsMenu';
+    const CUSTOMS_WAIT_MS = 300;
+    const CUSTOMS_WAIT_TRIES = 120;
+    const CUSTOMS_STORAGE_KEY =
+        CUSTOMS_API_NAME + '.addon.' + ADDON_ID;
 
     let btn = null;
     let autoMode = false;
     let autoIntervalId = null;
     let lastVideoRef = null;
 
-    /**********************
-     * STYLES
-     **********************/
+    let observer = null;
+    let pollInterval = null;
+    let enabled = false;
+
+    let registeredWithCustoms = false;
+    let customsRegisterTimer = null;
+
+
+
+    let ignoreStoredCustomsState = false;
+
+    const isCustomsAvailable = () => {
+        const api = window[CUSTOMS_API_NAME];
+        return !!api && typeof api.registerAddon === 'function';
+    };
+
+    const isEnabledByCustomsState = () =>
+        localStorage.getItem(CUSTOMS_STORAGE_KEY) !== 'false';
+
     const ensureStyles = () => {
         if (document.getElementById('auto-screenshot-style')) return;
 
@@ -43,9 +64,6 @@
     const sanitize = str =>
         str.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 
-    /**********************
-     * ANIMATION
-     **********************/
     const getIcon = () => btn?.querySelector('.material-symbols-outlined');
 
     const animateSingleShot = () => {
@@ -72,9 +90,6 @@
         icon.classList.remove('auto-screenshot-active');
     };
 
-    /**********************
-     * LABEL PARSING
-     **********************/
     const getVideoLabel = video => {
         const pageTitleEl = document.querySelector('h3.pageTitle') ||
             Array.from(document.querySelectorAll('[aria-hidden="true"]'))
@@ -102,9 +117,6 @@
         return ` - ${sanitize(text)}`;
     };
 
-    /**********************
-     * TAKE SCREENSHOT
-     **********************/
     const takeScreenshot = () => {
         const video = document.querySelector('video');
         if (!video || video.videoWidth === 0) return;
@@ -129,17 +141,20 @@
         link.click();
     };
 
-    /**********************
-     * AUTO MODE
-     **********************/
     const stopAutoMode = () => {
         autoMode = false;
-        clearInterval(autoIntervalId);
-        autoIntervalId = null;
+
+        if (autoIntervalId) {
+            clearInterval(autoIntervalId);
+            autoIntervalId = null;
+        }
+
         stopWiggle();
     };
 
     const startAutoMode = () => {
+        if (autoMode) return;
+
         autoMode = true;
         startWiggle();
         takeScreenshot();
@@ -150,9 +165,6 @@
         autoMode ? stopAutoMode() : startAutoMode();
     };
 
-    /**********************
-     * BUTTON
-     **********************/
     const ensureBtn = () => {
         if (!btn) {
             ensureStyles();
@@ -170,7 +182,10 @@
             let clickCount = 0;
             let clickTimer = null;
 
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+
                 clickCount++;
 
                 if (clickTimer) clearTimeout(clickTimer);
@@ -186,7 +201,10 @@
                 }, 250);
             });
 
-            btn.addEventListener('mousedown', () => {
+            btn.addEventListener('mousedown', event => {
+                event.preventDefault();
+                event.stopPropagation();
+
                 if (autoMode || intervalId) return;
 
                 startWiggle();
@@ -195,7 +213,12 @@
                 intervalId = setInterval(takeScreenshot, 200);
             });
 
-            const stopInterval = () => {
+            const stopInterval = event => {
+                if (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+
                 if (!intervalId) return;
 
                 clearInterval(intervalId);
@@ -213,9 +236,13 @@
         return btn;
     };
 
-    /**********************
-     * VIDEO CHANGE DETECTION
-     **********************/
+    const removeButton = () => {
+        if (btn) {
+            btn.remove();
+            btn = null;
+        }
+    };
+
     const checkVideoChange = () => {
         const video = document.querySelector('video');
 
@@ -226,10 +253,9 @@
         }
     };
 
-    /**********************
-     * INJECT BUTTON
-     **********************/
     const injectButton = () => {
+        if (!enabled) return false;
+
         const favBtn = document.querySelector('.buttons.focuscontainer-x > .btnUserRating');
         if (!favBtn || !favBtn.parentNode) return false;
 
@@ -242,16 +268,140 @@
         return true;
     };
 
-    const observer = new MutationObserver(() => {
+    const enable = () => {
+        if (enabled) return;
+
+        enabled = true;
+
+        observer = new MutationObserver(() => {
+            injectButton();
+            checkVideoChange();
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['style', 'class']
+        });
+
+        pollInterval = setInterval(() => {
+            if (injectButton()) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }, 300);
+
         injectButton();
-        checkVideoChange();
-    });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+        console.log('[Jellyfin Screenshot Button] Enabled.');
+    };
 
-    const pollInterval = setInterval(() => {
-        if (injectButton()) clearInterval(pollInterval);
-    }, 300);
+    const disable = () => {
+        if (!enabled) return;
 
-    injectButton();
+        enabled = false;
+
+        stopAutoMode();
+
+        if (observer) {
+            observer.disconnect();
+            observer = null;
+        }
+
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+
+        removeButton();
+        lastVideoRef = null;
+
+        console.log('[Jellyfin Screenshot Button] Disabled.');
+    };
+
+    const tryRegisterWithCustoms = () => {
+        if (registeredWithCustoms) return false;
+
+        const api = window[CUSTOMS_API_NAME];
+
+        if (!api || typeof api.registerAddon !== 'function') {
+            return false;
+        }
+
+        registeredWithCustoms = true;
+
+        if (localStorage.getItem(CUSTOMS_STORAGE_KEY) === null) {
+            localStorage.setItem(CUSTOMS_STORAGE_KEY, 'true');
+        }
+
+        api.registerAddon({
+            id: ADDON_ID,
+            name: ADDON_NAME,
+
+            enable() {
+                ignoreStoredCustomsState = false;
+                enable();
+            },
+
+            disable() {
+                ignoreStoredCustomsState = false;
+                disable();
+            }
+        });
+
+        if (!ignoreStoredCustomsState) {
+            if (isEnabledByCustomsState()) {
+                enable();
+            } else {
+                disable();
+            }
+        } else {
+            enable();
+        }
+
+        console.log('[Jellyfin Screenshot Button] Registered with Customs.');
+
+        return true;
+    };
+
+    const startCustomsRegistrationWatcher = () => {
+        tryRegisterWithCustoms();
+
+        if (registeredWithCustoms) return;
+
+        let tries = 0;
+
+        customsRegisterTimer = setInterval(() => {
+            tries += 1;
+            tryRegisterWithCustoms();
+
+            if (registeredWithCustoms || tries >= CUSTOMS_WAIT_TRIES) {
+                clearInterval(customsRegisterTimer);
+                customsRegisterTimer = null;
+            }
+        }, CUSTOMS_WAIT_MS);
+    };
+
+    const start = () => {
+        if (isCustomsAvailable()) {
+            ignoreStoredCustomsState = false;
+            tryRegisterWithCustoms();
+        } else {
+            ignoreStoredCustomsState = true;
+            enable();
+        }
+
+        startCustomsRegistrationWatcher();
+
+        console.log('[Jellyfin Screenshot Button] Script loaded.');
+    };
+
+    if (document.documentElement) {
+        start();
+    } else {
+        document.addEventListener('DOMContentLoaded', start, {
+            once: true
+        });
+    }
 })();
