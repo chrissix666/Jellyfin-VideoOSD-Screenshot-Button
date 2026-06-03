@@ -1,3 +1,5 @@
+Note: This script is compatible with the [Jellyfin-VideoOSD-CustomOnOff-Menu](https://github.com/chrissix666/Jellyfin-VideoOSD-CustomOnOff-Menu).
+
 # Jellyfin Auto Screenshot Button on Video OSD
 
 Adds a screenshot button to the **Jellyfin Web UI video player**, available in the **Video OSD** during playback.
