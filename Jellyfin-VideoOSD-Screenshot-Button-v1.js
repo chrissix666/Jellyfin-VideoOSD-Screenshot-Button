@@ -1,8 +1,21 @@
+function ssIsSupportedPlatform() {
+    const ua = navigator.userAgent.toLowerCase();
+    const isMobile = ['mobi', 'ipad', 'iphone', 'ipod', 'silk', 'opera mini'].some((term) => ua.includes(term));
+    const isTv = ['tv', 'samsungbrowser', 'viera', 'web0s'].some((term) => ua.includes(term));
+    const isTizen = ua.includes('tizen') || window.tizen != null;
+    const isAndroid = ua.includes('android');
+    const isIOS = ['ipad', 'iphone', 'ipod'].some((term) => ua.includes(term)) || (ua.includes('macintosh') && navigator.maxTouchPoints > 1);
+    return !(isMobile || isTv || isTizen || isAndroid || isIOS);
+}
+
 (function () {
     'use strict';
 
+    if (!ssIsSupportedPlatform()) return;
+
     const ADDON_ID = 'screenshotButton';
     const ADDON_NAME = 'Screenshot Button';
+    const RESPONSIVE_STYLE_ID = 'screenshotButtonResponsiveStyle';
 
     const AUTO_SCREENSHOT_INTERVAL_MS = 1000;
     const CUSTOMS_API_NAME = 'JellyfinVideoOSDCustomsMenu';
@@ -34,6 +47,19 @@
 
     const isEnabledByCustomsState = () =>
         localStorage.getItem(CUSTOMS_STORAGE_KEY) !== 'false';
+
+    const ensureResponsiveStyle = () => {
+        if (document.getElementById(RESPONSIVE_STYLE_ID)) return;
+
+        const style = document.createElement('style');
+        style.id = RESPONSIVE_STYLE_ID;
+        style.textContent = `
+        @media all and (max-width: 50em) {
+            .videoOsdBottom .btnScreenshot { display: none !important; }
+        }
+        `;
+        document.head.appendChild(style);
+    };
 
     const ensureStyles = () => {
         if (document.getElementById('auto-screenshot-style')) return;
@@ -262,6 +288,7 @@
         const container = favBtn.parentNode;
 
         if (!container.querySelector('.btnScreenshot')) {
+            ensureResponsiveStyle();
             container.insertBefore(ensureBtn(), favBtn);
         }
 
