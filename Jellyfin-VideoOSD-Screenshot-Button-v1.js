@@ -13,11 +13,173 @@ function ssIsSupportedPlatform() {
 
     if (!ssIsSupportedPlatform()) return;
 
+    // ---- PLUGIN ADAPTER: config source, retrofit for VideoOSD Tweaks and Candy ----
+    const PLUGIN_GUID = '468b1980-7a6c-4e45-a129-24825085ece4';
+
+    const CONFIG = {
+        // ============================================================
+        // == SHARED VALUES (both standalone and plugin usage) ==
+        // Every field below is a genuinely new capability that this
+        // mod never had any way to configure before this retrofit
+        // (either hardcoded PNG-only, a single fixed filename shape,
+        // or an always-on mode with a fixed interval). None of them
+        // replace a pre-existing configurable default, so all are
+        // plain local CONFIG fields usable identically by a
+        // standalone/JS-injector user (hand-edit these values
+        // directly) and by the plugin (applyPluginConfig() below
+        // overwrites them once fetched). No dual-mode branch needed
+        // anywhere in this file, same reasoning as Speed-Buttons and
+        // FrameByFrame.
+        // ============================================================
+
+        hideOnNarrowWindow: true,
+        centeredGapEm: 0,
+
+        // 'png' | 'jpg'. Original script hardcoded PNG only
+        // (canvas.toDataURL('image/png')).
+        fileFormat: 'png',
+
+        // 'original' | 'library'. Original script only ever scraped
+        // the visible page title (== today's 'library' behavior).
+        filenameSource: 'library',
+
+        // Per content type, only relevant when filenameSource is
+        // 'library'. Movies default on, Episodes/Videos default off
+        // (matches the original script's own behavior, which never
+        // included a year for episodes, and stripped it for movies).
+        includeYearMovies: true,
+        includeYearEpisodes: false,
+        includeYearVideos: false,
+
+        // One of: 'screenshot_timestamp_label' (default, matches the
+        // original script's only behavior), 'screenshot_timestamp',
+        // 'screenshot_label', 'timestamp_label', 'screenshot_only',
+        // 'timestamp_only', 'label_only'.
+        filenamePattern: 'screenshot_timestamp_label',
+
+        // Original script: always enabled, fixed 200ms.
+        rapidFireEnabled: true,
+        rapidFireIntervalMs: 200,
+
+        // Original script: always enabled, fixed 1000ms
+        // (AUTO_SCREENSHOT_INTERVAL_MS).
+        autoModeEnabled: true,
+        autoModeIntervalMs: 1000
+    };
+
+    async function fetchPluginConfig() {
+        if (!window.ApiClient || typeof ApiClient.getPluginConfiguration !== 'function') {
+            return null;
+        }
+        try {
+            return await ApiClient.getPluginConfiguration(PLUGIN_GUID);
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function applyPluginConfig(pluginConfig) {
+        if (!pluginConfig) return;
+
+        if (typeof pluginConfig.ScreenshotHideOnNarrowWindow === 'boolean') {
+            CONFIG.hideOnNarrowWindow = pluginConfig.ScreenshotHideOnNarrowWindow;
+        }
+
+        CONFIG.centeredGapEm = pluginConfig.ScreenshotIndividualCenteredGapOverride
+            ? (Number(pluginConfig.ScreenshotCenteredGapValue) || 0)
+            : (Number(pluginConfig.GeneralCenteredGap) || 0);
+
+        if (typeof pluginConfig.ScreenshotFileFormat === 'string') {
+            CONFIG.fileFormat = pluginConfig.ScreenshotFileFormat;
+        }
+        if (typeof pluginConfig.ScreenshotFilenameSource === 'string') {
+            CONFIG.filenameSource = pluginConfig.ScreenshotFilenameSource;
+        }
+        if (typeof pluginConfig.ScreenshotIncludeYearMovies === 'boolean') {
+            CONFIG.includeYearMovies = pluginConfig.ScreenshotIncludeYearMovies;
+        }
+        if (typeof pluginConfig.ScreenshotIncludeYearEpisodes === 'boolean') {
+            CONFIG.includeYearEpisodes = pluginConfig.ScreenshotIncludeYearEpisodes;
+        }
+        if (typeof pluginConfig.ScreenshotIncludeYearVideos === 'boolean') {
+            CONFIG.includeYearVideos = pluginConfig.ScreenshotIncludeYearVideos;
+        }
+        if (typeof pluginConfig.ScreenshotFilenamePattern === 'string') {
+            CONFIG.filenamePattern = pluginConfig.ScreenshotFilenamePattern;
+        }
+        if (typeof pluginConfig.ScreenshotRapidFireEnabled === 'boolean') {
+            CONFIG.rapidFireEnabled = pluginConfig.ScreenshotRapidFireEnabled;
+        }
+        if (typeof pluginConfig.ScreenshotRapidFireIntervalMs === 'number') {
+            CONFIG.rapidFireIntervalMs = pluginConfig.ScreenshotRapidFireIntervalMs;
+        }
+        if (typeof pluginConfig.ScreenshotAutoModeEnabled === 'boolean') {
+            CONFIG.autoModeEnabled = pluginConfig.ScreenshotAutoModeEnabled;
+        }
+        if (typeof pluginConfig.ScreenshotAutoModeIntervalMs === 'number') {
+            CONFIG.autoModeIntervalMs = pluginConfig.ScreenshotAutoModeIntervalMs;
+        }
+    }
+
+    // NEW: content-kind (movie/episode/video) and original-filename
+    // detection. Neither existed before this retrofit -- the original
+    // script only ever scraped the visible page title text, it never
+    // queried the API at all. Both are needed now: content-kind to pick
+    // the right "Include Year" setting, original filename for the new
+    // "Original Filename" source option. Fetched together in one call and
+    // cached per now-playing item, same caching pattern already proven in
+    // FrameByFrame-Buttons.js's getFpsFromSession().
+    let cachedItemInfo = null;
+    let cachedItemInfoName = null;
+
+    async function getNowPlayingItemInfo() {
+        if (!window.ApiClient?.getSessions) return null;
+
+        try {
+            const sessions = await ApiClient.getSessions();
+            const session =
+                sessions.find(s => s.NowPlayingItem && s.PlayState) ||
+                sessions.find(s => s.NowPlayingItem);
+
+            const item = session?.NowPlayingItem;
+            if (!item) return null;
+
+            const itemName = item.Name || item.Id || 'unknown';
+
+            if (cachedItemInfo && cachedItemInfoName === itemName) {
+                return cachedItemInfo;
+            }
+
+            let kind = 'video';
+            if (item.Type === 'Movie') kind = 'movie';
+            else if (item.Type === 'Episode') kind = 'episode';
+
+            let originalFilename = null;
+            try {
+                const userId = ApiClient.getCurrentUserId();
+                const fullItem = await ApiClient.getItem(userId, item.Id);
+                const path = fullItem?.Path || fullItem?.MediaSources?.[0]?.Path;
+                if (path) {
+                    const withExt = path.split(/[\\/]/).pop();
+                    originalFilename = withExt.replace(/\.[^.]+$/, '');
+                }
+            } catch (err) {
+                originalFilename = null;
+            }
+
+            cachedItemInfo = { kind, originalFilename };
+            cachedItemInfoName = itemName;
+            return cachedItemInfo;
+        } catch (err) {
+            return null;
+        }
+    }
+    // ---- END PLUGIN ADAPTER ----
+
     const ADDON_ID = 'screenshotButton';
     const ADDON_NAME = 'Screenshot Button';
     const RESPONSIVE_STYLE_ID = 'screenshotButtonResponsiveStyle';
 
-    const AUTO_SCREENSHOT_INTERVAL_MS = 1000;
     const CUSTOMS_API_NAME = 'JellyfinVideoOSDCustomsMenu';
     const CUSTOMS_WAIT_MS = 300;
     const CUSTOMS_WAIT_TRIES = 120;
@@ -48,8 +210,16 @@ function ssIsSupportedPlatform() {
     const isEnabledByCustomsState = () =>
         localStorage.getItem(CUSTOMS_STORAGE_KEY) !== 'false';
 
-    const ensureResponsiveStyle = () => {
-        if (document.getElementById(RESPONSIVE_STYLE_ID)) return;
+    // Renamed usage: now driven by CONFIG.hideOnNarrowWindow and callable
+    // repeatedly to add/remove, not just add-once. Same
+    // refreshResponsiveStyle() pattern as the other retrofitted mods.
+    const refreshResponsiveStyle = () => {
+        const existing = document.getElementById(RESPONSIVE_STYLE_ID);
+        if (!CONFIG.hideOnNarrowWindow) {
+            if (existing) existing.remove();
+            return;
+        }
+        if (existing) return;
 
         const style = document.createElement('style');
         style.id = RESPONSIVE_STYLE_ID;
@@ -87,6 +257,15 @@ function ssIsSupportedPlatform() {
         document.head.appendChild(style);
     };
 
+    // NEW: applies the General/Individual Centered Gap. This button never
+    // had any configurable margin before this retrofit (no baseline to
+    // preserve), same reasoning as Speed-Buttons/FrameByFrame.
+    const applySpacing = button => {
+        const gapEm = CONFIG.centeredGapEm || 0;
+        button.style.marginLeft = gapEm > 0 ? gapEm + 'em' : '';
+        button.style.marginRight = gapEm > 0 ? gapEm + 'em' : '';
+    };
+
     const sanitize = str =>
         str.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 
@@ -116,7 +295,23 @@ function ssIsSupportedPlatform() {
         icon.classList.remove('auto-screenshot-active');
     };
 
-    const getVideoLabel = video => {
+    // CHANGED: now async (needs an API call for content-kind and/or the
+    // original filename, neither obtainable synchronously from the DOM
+    // alone), and reads CONFIG.filenameSource/includeYearXxx. The original
+    // regex-based title parsing itself (episodeMatch groups, sanitize)
+    // stays completely untouched, only the year-stripping decision and an
+    // upfront "use the original filename instead" branch are new.
+    const getVideoLabel = async video => {
+        if (CONFIG.filenameSource === 'original') {
+            const info = await getNowPlayingItemInfo();
+            if (info?.originalFilename) {
+                return ` - ${sanitize(info.originalFilename)}`;
+            }
+            // Original filename unavailable (e.g. API call failed) -- fall
+            // through to the library-name approach below instead of
+            // returning an empty label.
+        }
+
         const pageTitleEl = document.querySelector('h3.pageTitle') ||
             Array.from(document.querySelectorAll('[aria-hidden="true"]'))
                 .find(el => el.className.toLowerCase().includes('pagetitle'));
@@ -124,6 +319,12 @@ function ssIsSupportedPlatform() {
         if (!pageTitleEl) return '';
 
         let text = pageTitleEl.textContent.trim();
+
+        const info = await getNowPlayingItemInfo();
+        const kind = info?.kind || 'video';
+        const includeYear = kind === 'movie' ? CONFIG.includeYearMovies
+            : kind === 'episode' ? CONFIG.includeYearEpisodes
+                : CONFIG.includeYearVideos;
 
         const episodeMatch = text.match(/^(.*?)-\s*S(\d+)[\:-]?E(\d+)\s*-\s*(.*?)(?:\s*\(\d{4}\))?$/i);
         if (episodeMatch) {
@@ -134,15 +335,82 @@ function ssIsSupportedPlatform() {
             const episode = episodeMatch[3].padStart(2, '0');
             const episodeName = episodeMatch[4].trim();
 
-            return ` - ${showTitle} - S${season}E${episode} - ${episodeName}`;
+            // The original regex already excludes any year from the
+            // captured groups regardless -- episodes never carried one in
+            // the label before this retrofit. Only append it back if the
+            // admin explicitly turned "Include Year (Episodes)" on.
+            const yearMatch = text.match(/\((\d{4})\)\s*$/);
+            const yearSuffix = includeYear && yearMatch ? ` (${yearMatch[1]})` : '';
+
+            return ` - ${showTitle} - S${season}E${episode} - ${episodeName}${yearSuffix}`;
         }
 
-        text = text.replace(/\s*\(\d{4}\)/, '');
+        if (!includeYear) {
+            text = text.replace(/\s*\(\d{4}\)/, '');
+        }
         text = text.replace(/\s*:\s*/g, ' - ');
 
         return ` - ${sanitize(text)}`;
     };
 
+    // NEW: builds the timestamp text once, shared by all 7 filename
+    // patterns below.
+    const buildTimestampPart = () => {
+        const now = new Date();
+        const date = now.toISOString().slice(0, 10);
+        const time =
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0') +
+            String(now.getSeconds()).padStart(2, '0');
+
+        return `${date} ${time}`;
+    };
+
+    // NEW: all 7 mathematically possible combinations of the 3 building
+    // blocks ("Screenshot" text / Timestamp / Label), see the concept
+    // document. 'screenshot_timestamp_label' reproduces the original
+    // script's only behavior exactly.
+    const buildFilename = (labelPart, extension) => {
+        const timestamp = buildTimestampPart();
+        const screenshotText = 'Screenshot';
+        const cleanLabel = labelPart.replace(/^\s*-\s*/, '');
+
+        let base;
+        switch (CONFIG.filenamePattern) {
+            case 'screenshot_timestamp':
+                base = `${screenshotText} ${timestamp}`;
+                break;
+            case 'screenshot_label':
+                base = `${screenshotText}${labelPart}`;
+                break;
+            case 'timestamp_label':
+                base = `${timestamp}${labelPart}`;
+                break;
+            case 'screenshot_only':
+                base = screenshotText;
+                break;
+            case 'timestamp_only':
+                base = timestamp;
+                break;
+            case 'label_only':
+                base = cleanLabel;
+                break;
+            case 'screenshot_timestamp_label':
+            default:
+                base = `${screenshotText} ${timestamp}${labelPart}`;
+                break;
+        }
+
+        return `${base}.${extension}`;
+    };
+
+    // CHANGED: pixel capture (canvas.drawImage) still happens synchronously
+    // first, exactly like before, so the captured frame is unaffected by
+    // any async label/filename work that follows -- deliberately ordered
+    // this way so awaiting getVideoLabel() can never cause a frame
+    // mismatch between what was requested and what actually got saved.
+    // File format (CONFIG.fileFormat) and the new filename pattern system
+    // are applied only after the frame is already captured.
     const takeScreenshot = () => {
         const video = document.querySelector('video');
         if (!video || video.videoWidth === 0) return;
@@ -152,19 +420,17 @@ function ssIsSupportedPlatform() {
         canvas.height = video.videoHeight;
         canvas.getContext('2d').drawImage(video, 0, 0);
 
-        const now = new Date();
-        const date = now.toISOString().slice(0, 10);
-        const time =
-            String(now.getHours()).padStart(2, '0') +
-            String(now.getMinutes()).padStart(2, '0') +
-            String(now.getSeconds()).padStart(2, '0');
+        const isJpg = CONFIG.fileFormat === 'jpg';
+        const mimeType = isJpg ? 'image/jpeg' : 'image/png';
+        const dataUrl = isJpg ? canvas.toDataURL(mimeType, 0.92) : canvas.toDataURL(mimeType);
+        const extension = isJpg ? 'jpg' : 'png';
 
-        const label = getVideoLabel(video);
-
-        const link = document.createElement('a');
-        link.download = `Screenshot ${date} ${time}${label}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        getVideoLabel(video).then(label => {
+            const link = document.createElement('a');
+            link.download = buildFilename(label, extension);
+            link.href = dataUrl;
+            link.click();
+        });
     };
 
     const stopAutoMode = () => {
@@ -184,7 +450,7 @@ function ssIsSupportedPlatform() {
         autoMode = true;
         startWiggle();
         takeScreenshot();
-        autoIntervalId = setInterval(takeScreenshot, AUTO_SCREENSHOT_INTERVAL_MS);
+        autoIntervalId = setInterval(takeScreenshot, CONFIG.autoModeIntervalMs);
     };
 
     const toggleAutoMode = () => {
@@ -219,7 +485,7 @@ function ssIsSupportedPlatform() {
                 clickTimer = setTimeout(() => {
                     if (clickCount === 1) {
                         animateSingleShot();
-                    } else if (clickCount === 2) {
+                    } else if (clickCount === 2 && CONFIG.autoModeEnabled) {
                         toggleAutoMode();
                     }
 
@@ -231,12 +497,13 @@ function ssIsSupportedPlatform() {
                 event.preventDefault();
                 event.stopPropagation();
 
+                if (!CONFIG.rapidFireEnabled) return;
                 if (autoMode || intervalId) return;
 
                 startWiggle();
                 takeScreenshot();
 
-                intervalId = setInterval(takeScreenshot, 200);
+                intervalId = setInterval(takeScreenshot, CONFIG.rapidFireIntervalMs);
             });
 
             const stopInterval = event => {
@@ -288,8 +555,10 @@ function ssIsSupportedPlatform() {
         const container = favBtn.parentNode;
 
         if (!container.querySelector('.btnScreenshot')) {
-            ensureResponsiveStyle();
-            container.insertBefore(ensureBtn(), favBtn);
+            refreshResponsiveStyle();
+            const newBtn = ensureBtn();
+            container.insertBefore(newBtn, favBtn);
+            applySpacing(newBtn);
         }
 
         return true;
@@ -431,4 +700,12 @@ function ssIsSupportedPlatform() {
             once: true
         });
     }
+
+    // ---- PLUGIN ADAPTER: apply fetched config once it arrives ----
+    fetchPluginConfig().then(function (pluginConfig) {
+        applyPluginConfig(pluginConfig);
+        refreshResponsiveStyle();
+        if (btn) applySpacing(btn);
+    });
+    // ---- END PLUGIN ADAPTER ----
 })();
