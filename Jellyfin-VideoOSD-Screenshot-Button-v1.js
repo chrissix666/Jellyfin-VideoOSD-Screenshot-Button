@@ -71,107 +71,20 @@ function ssIsSupportedPlatform() {
     };
 
     async function fetchPluginConfig() {
-        if (!window.ApiClient || typeof ApiClient.getPluginConfiguration !== 'function') {
-            return null;
-        }
-        try {
-            return await ApiClient.getPluginConfiguration(PLUGIN_GUID);
-        } catch (err) {
-            return null;
-        }
-    }
-
-    function applyPluginConfig(pluginConfig) {
-        if (!pluginConfig) return;
-
-        if (typeof pluginConfig.ScreenshotHideOnNarrowWindow === 'boolean') {
-            CONFIG.hideOnNarrowWindow = pluginConfig.ScreenshotHideOnNarrowWindow;
-        }
-
-        if (typeof pluginConfig.ScreenshotFileFormat === 'string') {
-            CONFIG.fileFormat = pluginConfig.ScreenshotFileFormat;
-        }
-        if (typeof pluginConfig.ScreenshotFilenameSource === 'string') {
-            CONFIG.filenameSource = pluginConfig.ScreenshotFilenameSource;
-        }
-        if (typeof pluginConfig.ScreenshotIncludeYearMovies === 'boolean') {
-            CONFIG.includeYearMovies = pluginConfig.ScreenshotIncludeYearMovies;
-        }
-        if (typeof pluginConfig.ScreenshotIncludeYearEpisodes === 'boolean') {
-            CONFIG.includeYearEpisodes = pluginConfig.ScreenshotIncludeYearEpisodes;
-        }
-        if (typeof pluginConfig.ScreenshotIncludeYearVideos === 'boolean') {
-            CONFIG.includeYearVideos = pluginConfig.ScreenshotIncludeYearVideos;
-        }
-        if (typeof pluginConfig.ScreenshotFilenamePattern === 'string') {
-            CONFIG.filenamePattern = pluginConfig.ScreenshotFilenamePattern;
-        }
-        if (typeof pluginConfig.ScreenshotRapidFireEnabled === 'boolean') {
-            CONFIG.rapidFireEnabled = pluginConfig.ScreenshotRapidFireEnabled;
-        }
-        if (typeof pluginConfig.ScreenshotRapidFireIntervalMs === 'number') {
-            CONFIG.rapidFireIntervalMs = pluginConfig.ScreenshotRapidFireIntervalMs;
-        }
-        if (typeof pluginConfig.ScreenshotAutoModeEnabled === 'boolean') {
-            CONFIG.autoModeEnabled = pluginConfig.ScreenshotAutoModeEnabled;
-        }
-        if (typeof pluginConfig.ScreenshotAutoModeIntervalMs === 'number') {
-            CONFIG.autoModeIntervalMs = pluginConfig.ScreenshotAutoModeIntervalMs;
-        }
-    }
-
-    // NEW: content-kind (movie/episode/video) and original-filename
-    // detection. Neither existed before this retrofit -- the original
-    // script only ever scraped the visible page title text, it never
-    // queried the API at all. Both are needed now: content-kind to pick
-    // the right "Include Year" setting, original filename for the new
-    // "Original Filename" source option. Fetched together in one call and
-    // cached per now-playing item, same caching pattern already proven in
-    // FrameByFrame-Buttons.js's getFpsFromSession().
-    let cachedItemInfo = null;
-    let cachedItemInfoName = null;
-
-    async function getNowPlayingItemInfo() {
-        if (!window.ApiClient?.getSessions) return null;
-
-        try {
-            const sessions = await ApiClient.getSessions();
-            const session =
-                sessions.find(s => s.NowPlayingItem && s.PlayState) ||
-                sessions.find(s => s.NowPlayingItem);
-
-            const item = session?.NowPlayingItem;
-            if (!item) return null;
-
-            const itemName = item.Name || item.Id || 'unknown';
-
-            if (cachedItemInfo && cachedItemInfoName === itemName) {
-                return cachedItemInfo;
-            }
-
-            let kind = 'video';
-            if (item.Type === 'Movie') kind = 'movie';
-            else if (item.Type === 'Episode') kind = 'episode';
-
-            let originalFilename = null;
-            try {
-                const userId = ApiClient.getCurrentUserId();
-                const fullItem = await ApiClient.getItem(userId, item.Id);
-                const path = fullItem?.Path || fullItem?.MediaSources?.[0]?.Path;
-                if (path) {
-                    const withExt = path.split(/[\\/]/).pop();
-                    originalFilename = withExt.replace(/\.[^.]+$/, '');
+        const maxAttempts = 120;
+        const delayMs = 250;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            if (window.ApiClient && typeof ApiClient.getPluginConfiguration === 'function') {
+                try {
+                    const config = await ApiClient.getPluginConfiguration(PLUGIN_GUID);
+                    if (config) return config;
+                } catch (err) {
+                    // fall through, try again after the delay below
                 }
-            } catch (err) {
-                originalFilename = null;
             }
-
-            cachedItemInfo = { kind, originalFilename };
-            cachedItemInfoName = itemName;
-            return cachedItemInfo;
-        } catch (err) {
-            return null;
+            await new Promise(function (resolve) { setTimeout(resolve, delayMs); });
         }
+        return null;
     }
     // ---- END PLUGIN ADAPTER ----
 
@@ -558,9 +471,25 @@ function ssIsSupportedPlatform() {
 
         enabled = true;
 
+        // FIX for a possible cause of a real, live-observed hang: this
+        // observer watches the whole document.body subtree for any
+        // style/class change, which fires constantly during active video
+        // playback (Jellyfin's own progress bar updates style/class very
+        // frequently), and it's one of 3 currently-enabled mods with an
+        // essentially identical, independent observer, all reacting to
+        // the same mutations simultaneously. Debounced to at most once
+        // every 100ms: still responsive enough to catch newly inserted
+        // elements quickly, but coalesces a rapid burst of many mutations
+        // into a single actual check instead of running the callback
+        // hundreds or thousands of times per second.
+        let debounceTimer = null;
         observer = new MutationObserver(() => {
-            injectButton();
-            checkVideoChange();
+            if (debounceTimer) return;
+            debounceTimer = setTimeout(() => {
+                debounceTimer = null;
+                injectButton();
+                checkVideoChange();
+            }, 100);
         });
 
         observer.observe(document.body, {
