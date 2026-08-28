@@ -33,7 +33,10 @@ function ssIsSupportedPlatform() {
         // ============================================================
 
         hideOnNarrowWindow: true,
-        centeredGapEm: 0,
+        // No centeredGapEm here: corrected, General/Individual Centered
+        // Gap only ever applies to the 3 bottom-left mods (A-B Loop,
+        // Speed, FrameByFrame), never to Download/Screenshot in the
+        // bottom-right zone.
 
         // 'png' | 'jpg'. Original script hardcoded PNG only
         // (canvas.toDataURL('image/png')).
@@ -84,10 +87,6 @@ function ssIsSupportedPlatform() {
         if (typeof pluginConfig.ScreenshotHideOnNarrowWindow === 'boolean') {
             CONFIG.hideOnNarrowWindow = pluginConfig.ScreenshotHideOnNarrowWindow;
         }
-
-        CONFIG.centeredGapEm = pluginConfig.ScreenshotIndividualCenteredGapOverride
-            ? (Number(pluginConfig.ScreenshotCenteredGapValue) || 0)
-            : (Number(pluginConfig.GeneralCenteredGap) || 0);
 
         if (typeof pluginConfig.ScreenshotFileFormat === 'string') {
             CONFIG.fileFormat = pluginConfig.ScreenshotFileFormat;
@@ -255,15 +254,6 @@ function ssIsSupportedPlatform() {
         }
         `;
         document.head.appendChild(style);
-    };
-
-    // NEW: applies the General/Individual Centered Gap. This button never
-    // had any configurable margin before this retrofit (no baseline to
-    // preserve), same reasoning as Speed-Buttons/FrameByFrame.
-    const applySpacing = button => {
-        const gapEm = CONFIG.centeredGapEm || 0;
-        button.style.marginLeft = gapEm > 0 ? gapEm + 'em' : '';
-        button.style.marginRight = gapEm > 0 ? gapEm + 'em' : '';
     };
 
     const sanitize = str =>
@@ -558,7 +548,6 @@ function ssIsSupportedPlatform() {
             refreshResponsiveStyle();
             const newBtn = ensureBtn();
             container.insertBefore(newBtn, favBtn);
-            applySpacing(newBtn);
         }
 
         return true;
@@ -705,7 +694,6 @@ function ssIsSupportedPlatform() {
     fetchPluginConfig().then(function (pluginConfig) {
         applyPluginConfig(pluginConfig);
         refreshResponsiveStyle();
-        if (btn) applySpacing(btn);
     });
     // ---- END PLUGIN ADAPTER ----
 })();
