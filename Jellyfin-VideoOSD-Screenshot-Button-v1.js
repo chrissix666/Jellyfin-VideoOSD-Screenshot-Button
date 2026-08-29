@@ -558,7 +558,6 @@ function ssIsSupportedPlatform() {
 
         injectButton();
 
-        console.log('[Jellyfin Screenshot Button] Enabled.');
     };
 
     const disable = () => {
@@ -581,7 +580,6 @@ function ssIsSupportedPlatform() {
         removeButton();
         lastVideoRef = null;
 
-        console.log('[Jellyfin Screenshot Button] Disabled.');
     };
 
     const tryRegisterWithCustoms = () => {
@@ -624,7 +622,6 @@ function ssIsSupportedPlatform() {
             enable();
         }
 
-        console.log('[Jellyfin Screenshot Button] Registered with Customs.');
 
         return true;
     };
@@ -658,7 +655,7 @@ function ssIsSupportedPlatform() {
 
         startCustomsRegistrationWatcher();
 
-        console.log('[Jellyfin Screenshot Button] Script loaded.');
+        console.log('[VideoOSD Screenshot Button] Script loaded.');
     };
 
     if (document.documentElement) {
@@ -673,6 +670,8 @@ function ssIsSupportedPlatform() {
     fetchPluginConfig().then(function (pluginConfig) {
         applyPluginConfig(pluginConfig);
         refreshResponsiveStyle();
+    }).catch(function (err) {
+        console.error('[VideoOSD Screenshot Button] config apply failed:', err);
     });
     // ---- END PLUGIN ADAPTER ----
 })();
