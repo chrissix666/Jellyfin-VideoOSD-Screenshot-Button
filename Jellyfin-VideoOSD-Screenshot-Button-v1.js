@@ -86,6 +86,56 @@ function ssIsSupportedPlatform() {
         }
         return null;
     }
+
+    // FIX for a real, confirmed bug found via a faithful full-stack test
+    // (all real scripts + real Jellyfin HTML together), identical to the
+    // Download Button's: this function was CALLED at the bottom of this
+    // file but never defined anywhere in it (the comment at the CONFIG
+    // block even referenced "applyPluginConfig() below" -- it did not
+    // exist). The call threw a ReferenceError inside the promise chain
+    // as an unhandled rejection, so ALL admin-configured Screenshot
+    // settings (file format, filename source/pattern, rapid-fire, auto
+    // mode, narrow-window hiding) were silently ignored and the script
+    // permanently ran on its standalone defaults. Mapping mirrors the
+    // pattern every other addon uses; guarded per-field so a missing or
+    // partial config never wipes a default.
+    function applyPluginConfig(pluginConfig) {
+        if (!pluginConfig) return;
+
+        if (typeof pluginConfig.ScreenshotHideOnNarrowWindow === 'boolean') {
+            CONFIG.hideOnNarrowWindow = pluginConfig.ScreenshotHideOnNarrowWindow;
+        }
+        if (typeof pluginConfig.ScreenshotFileFormat === 'string' && pluginConfig.ScreenshotFileFormat) {
+            CONFIG.fileFormat = pluginConfig.ScreenshotFileFormat;
+        }
+        if (typeof pluginConfig.ScreenshotFilenameSource === 'string' && pluginConfig.ScreenshotFilenameSource) {
+            CONFIG.filenameSource = pluginConfig.ScreenshotFilenameSource;
+        }
+        if (typeof pluginConfig.ScreenshotIncludeYearMovies === 'boolean') {
+            CONFIG.includeYearMovies = pluginConfig.ScreenshotIncludeYearMovies;
+        }
+        if (typeof pluginConfig.ScreenshotIncludeYearEpisodes === 'boolean') {
+            CONFIG.includeYearEpisodes = pluginConfig.ScreenshotIncludeYearEpisodes;
+        }
+        if (typeof pluginConfig.ScreenshotIncludeYearVideos === 'boolean') {
+            CONFIG.includeYearVideos = pluginConfig.ScreenshotIncludeYearVideos;
+        }
+        if (typeof pluginConfig.ScreenshotFilenamePattern === 'string' && pluginConfig.ScreenshotFilenamePattern) {
+            CONFIG.filenamePattern = pluginConfig.ScreenshotFilenamePattern;
+        }
+        if (typeof pluginConfig.ScreenshotRapidFireEnabled === 'boolean') {
+            CONFIG.rapidFireEnabled = pluginConfig.ScreenshotRapidFireEnabled;
+        }
+        if (Number.isFinite(Number(pluginConfig.ScreenshotRapidFireIntervalMs)) && Number(pluginConfig.ScreenshotRapidFireIntervalMs) > 0) {
+            CONFIG.rapidFireIntervalMs = Number(pluginConfig.ScreenshotRapidFireIntervalMs);
+        }
+        if (typeof pluginConfig.ScreenshotAutoModeEnabled === 'boolean') {
+            CONFIG.autoModeEnabled = pluginConfig.ScreenshotAutoModeEnabled;
+        }
+        if (Number.isFinite(Number(pluginConfig.ScreenshotAutoModeIntervalMs)) && Number(pluginConfig.ScreenshotAutoModeIntervalMs) > 0) {
+            CONFIG.autoModeIntervalMs = Number(pluginConfig.ScreenshotAutoModeIntervalMs);
+        }
+    }
     // ---- END PLUGIN ADAPTER ----
 
     const ADDON_ID = 'screenshotButton';
