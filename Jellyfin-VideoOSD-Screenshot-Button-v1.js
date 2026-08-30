@@ -254,6 +254,31 @@ function ssIsSupportedPlatform() {
     // regex-based title parsing itself (episodeMatch groups, sanitize)
     // stays completely untouched, only the year-stripping decision and an
     // upfront "use the original filename instead" branch are new.
+    const getNowPlayingItemInfo = async () => {
+        if (!window.ApiClient?.getSessions) return null;
+        try {
+            const sessions = await ApiClient.getSessions();
+            const session =
+                sessions.find(function (s) { return s.NowPlayingItem && s.PlayState; }) ||
+                sessions.find(function (s) { return s.NowPlayingItem; });
+            const item = session?.NowPlayingItem;
+            if (!item) return null;
+
+            let kind = 'video';
+            if (item.Type === 'Movie') kind = 'movie';
+            else if (item.Type === 'Episode') kind = 'episode';
+
+            let originalFilename = null;
+            if (item.Path) {
+                originalFilename = item.Path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, '');
+            }
+
+            return { kind: kind, originalFilename: originalFilename };
+        } catch (err) {
+            return null;
+        }
+    };
+
     const getVideoLabel = async video => {
         if (CONFIG.filenameSource === 'original') {
             const info = await getNowPlayingItemInfo();
@@ -383,6 +408,8 @@ function ssIsSupportedPlatform() {
             link.download = buildFilename(label, extension);
             link.href = dataUrl;
             link.click();
+        }).catch(function (err) {
+            console.error('[VideoOSD Screenshot Button] takeScreenshot failed:', err);
         });
     };
 
