@@ -273,23 +273,55 @@ function ssIsSupportedPlatform() {
                 originalFilename = item.Path.split(/[\\/]/).pop().replace(/\.[^/.]+$/, '');
             }
 
-            return { kind: kind, originalFilename: originalFilename };
+            return {
+                kind: kind,
+                originalFilename: originalFilename,
+                name: item.Name || null,
+                seriesName: item.SeriesName || null,
+                seasonNumber: item.ParentIndexNumber || null,
+                episodeNumber: item.IndexNumber || null,
+                productionYear: item.ProductionYear || null
+            };
         } catch (err) {
             return null;
         }
     };
 
     const getVideoLabel = async video => {
+        const info = await getNowPlayingItemInfo();
+
         if (CONFIG.filenameSource === 'original') {
-            const info = await getNowPlayingItemInfo();
             if (info?.originalFilename) {
                 return ` - ${sanitize(info.originalFilename)}`;
             }
-            // Original filename unavailable (e.g. API call failed) -- fall
-            // through to the library-name approach below instead of
-            // returning an empty label.
+            // Original filename unavailable -- fall through to library-name approach.
         }
 
+        // Library name: try API first, fall back to DOM parsing
+        if (info?.name) {
+            const kind = info.kind || 'video';
+            const includeYear = kind === 'movie' ? CONFIG.includeYearMovies
+                : kind === 'episode' ? CONFIG.includeYearEpisodes
+                    : CONFIG.includeYearVideos;
+
+            let label;
+            if (kind === 'episode' && info.seriesName) {
+                const s = String(info.seasonNumber || 1).padStart(2, '0');
+                const e = String(info.episodeNumber || 1).padStart(2, '0');
+                label = `${info.seriesName} - S${s}E${e} - ${info.name}`;
+            } else {
+                label = info.name;
+            }
+
+            if (includeYear && info.productionYear) {
+                label += ` (${info.productionYear})`;
+            }
+
+            label = label.replace(/\s*:\s*/g, ' - ');
+            return ` - ${sanitize(label)}`;
+        }
+
+        // DOM fallback (API unavailable)
         const pageTitleEl = document.querySelector('h3.pageTitle') ||
             Array.from(document.querySelectorAll('[aria-hidden="true"]'))
                 .find(el => el.className.toLowerCase().includes('pagetitle'));
@@ -298,7 +330,6 @@ function ssIsSupportedPlatform() {
 
         let text = pageTitleEl.textContent.trim();
 
-        const info = await getNowPlayingItemInfo();
         const kind = info?.kind || 'video';
         const includeYear = kind === 'movie' ? CONFIG.includeYearMovies
             : kind === 'episode' ? CONFIG.includeYearEpisodes
@@ -313,10 +344,6 @@ function ssIsSupportedPlatform() {
             const episode = episodeMatch[3].padStart(2, '0');
             const episodeName = episodeMatch[4].trim();
 
-            // The original regex already excludes any year from the
-            // captured groups regardless -- episodes never carried one in
-            // the label before this retrofit. Only append it back if the
-            // admin explicitly turned "Include Year (Episodes)" on.
             const yearMatch = text.match(/\((\d{4})\)\s*$/);
             const yearSuffix = includeYear && yearMatch ? ` (${yearMatch[1]})` : '';
 
