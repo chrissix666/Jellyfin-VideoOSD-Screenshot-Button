@@ -255,13 +255,14 @@ function ssIsSupportedPlatform() {
     // stays completely untouched, only the year-stripping decision and an
     // upfront "use the original filename instead" branch are new.
     const getNowPlayingItemInfo = async () => {
-        if (!window.ApiClient?.getSessions) return null;
+        if (!window.ApiClient) return null;
         try {
-            const sessions = await ApiClient.getSessions();
-            const session =
-                sessions.find(function (s) { return s.NowPlayingItem && s.PlayState; }) ||
-                sessions.find(function (s) { return s.NowPlayingItem; });
-            const item = session?.NowPlayingItem;
+            const ratingBtn = document.querySelector('#videoOsdPage:not(.hide) .btnUserRating');
+            const id = ratingBtn?.dataset?.id;
+            if (!id) return null;
+
+            const userId = ApiClient.getCurrentUserId();
+            const item = await ApiClient.getItem(userId, id);
             if (!item) return null;
 
             let kind = 'video';
@@ -289,6 +290,8 @@ function ssIsSupportedPlatform() {
 
     const getVideoLabel = async video => {
         const info = await getNowPlayingItemInfo();
+
+
 
         if (CONFIG.filenameSource === 'original') {
             if (info?.originalFilename) {
