@@ -8,6 +8,8 @@ Overview of all my Jellyfin Web VideoOSD projects: [Jellyfin-VideoOSD-Projects-O
 
 Note: This script is compatible with the [Jellyfin-VideoOSD-CustomOnOff-Menu](https://github.com/chrissix666/Jellyfin-VideoOSD-CustomOnOff-Menu).
 
+Note: [@Moelf](https://gist.github.com/Moelf) released a [Firefox-adapted fork](https://gist.github.com/Moelf/ffb74c2270a792fd872f6b374364d67a) of this script, which also adds the `C` keyboard shortcut and direct copy-to-clipboard functionality.
+
 # Jellyfin Auto Screenshot Button on Video OSD
 
 Adds a screenshot button to the **Jellyfin Web UI video player**, available in the **Video OSD** during playback.
