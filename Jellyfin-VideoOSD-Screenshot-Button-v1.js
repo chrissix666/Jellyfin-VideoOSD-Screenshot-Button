@@ -222,7 +222,7 @@ function ssIsSupportedPlatform() {
     const sanitize = str =>
         str.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 
-    const getIcon = () => btn?.querySelector('.material-symbols-outlined');
+    const getIcon = () => btn?.querySelector('.jvosd-screenshot-icon');
 
     const animateSingleShot = () => {
         const icon = getIcon();
@@ -475,9 +475,17 @@ function ssIsSupportedPlatform() {
             btn.className = 'btnScreenshot autoSize paper-icon-button-light';
             btn.title = 'Screenshot';
 
+            // Inline SVG instead of the "Material Symbols Outlined" icon
+            // font: jellyfin-web ships no Material Symbols font, so without
+            // it (loaded by some other theme/plugin/CSS) the ligature text
+            // "photo_camera" was rendered as plain text instead of an icon. The
+            // path is the font's own "photo_camera" glyph (FILL 0, wght 400,
+            // GRAD 0, opsz 24), sized to the font's standard 24px, so it
+            // looks exactly like the font rendering did.
             const icon = document.createElement('span');
-            icon.className = 'xlargePaperIconButton material-symbols-outlined';
-            icon.textContent = 'photo_camera';
+            icon.className = 'xlargePaperIconButton jvosd-screenshot-icon';
+            icon.style.cssText = 'display:inline-block;width:24px;height:24px;line-height:0;';
+            icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" style="display:block"><path d="M480 -260Q555 -260 607.5 -312.5Q660 -365 660 -440Q660 -515 607.5 -567.5Q555 -620 480 -620Q405 -620 352.5 -567.5Q300 -515 300 -440Q300 -365 352.5 -312.5Q405 -260 480 -260ZM480 -340Q438 -340 409.0 -369.0Q380 -398 380 -440Q380 -482 409.0 -511.0Q438 -540 480 -540Q522 -540 551.0 -511.0Q580 -482 580 -440Q580 -398 551.0 -369.0Q522 -340 480 -340ZM160 -120Q127 -120 103.5 -143.5Q80 -167 80 -200V-680Q80 -713 103.5 -736.5Q127 -760 160 -760H286L360 -840H600L674 -760H800Q833 -760 856.5 -736.5Q880 -713 880 -680V-200Q880 -167 856.5 -143.5Q833 -120 800 -120ZM160 -200H800Q800 -200 800.0 -200.0Q800 -200 800 -200V-680Q800 -680 800.0 -680.0Q800 -680 800 -680H638L565 -760H395L322 -680H160Q160 -680 160.0 -680.0Q160 -680 160 -680V-200Q160 -200 160.0 -200.0Q160 -200 160 -200ZM480 -440Q480 -440 480.0 -440.0Q480 -440 480 -440Q480 -440 480.0 -440.0Q480 -440 480 -440Q480 -440 480.0 -440.0Q480 -440 480 -440Q480 -440 480.0 -440.0Q480 -440 480 -440Z"/></svg>';
             btn.appendChild(icon);
 
             let intervalId = null;
@@ -559,7 +567,7 @@ function ssIsSupportedPlatform() {
     const injectButton = () => {
         if (!enabled) return false;
 
-        const favBtn = document.querySelector('.buttons.focuscontainer-x > .btnUserRating');
+        const favBtn = document.querySelector('#videoOsdPage:not(.hide) .buttons.focuscontainer-x > .btnUserRating');
         if (!favBtn || !favBtn.parentNode) return false;
 
         const container = favBtn.parentNode;
