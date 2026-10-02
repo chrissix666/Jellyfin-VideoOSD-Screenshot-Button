@@ -8,13 +8,11 @@ function ssIsSupportedPlatform() {
     return !(isMobile || isTv || isTizen || isAndroid || isIOS);
 }
 
-(function () {
+function ssMain() {
     'use strict';
 
-    if (!ssIsSupportedPlatform()) return;
 
     // ---- PLUGIN ADAPTER: config source, retrofit for VideoOSD Tweaks and Candy ----
-    const PLUGIN_GUID = '468b1980-7a6c-4e45-a129-24825085ece4';
 
     const CONFIG = {
         // ============================================================
@@ -73,12 +71,13 @@ function ssIsSupportedPlatform() {
     async function fetchPluginConfig() {
         const maxAttempts = 120;
         const delayMs = 250;
+        let failures = 0;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             // No ApiClient yet (jellyfin-web creates it once a server is
             // known, e.g. after the server selection page): wait without
             // using up an attempt, like the not-logged-in case below.
             if (!window.ApiClient) attempt--;
-            if (window.ApiClient && typeof ApiClient.getPluginConfiguration === 'function') {
+            if (window.ApiClient && typeof ApiClient.getJSON === 'function') {
                 // Not logged in yet (e.g. still on the login page): every
                 // request would only fail with 401, so wait without using up
                 // an attempt (the whole budget used to run out right there).
@@ -88,25 +87,22 @@ function ssIsSupportedPlatform() {
                     continue;
                 }
                 try {
-                    // The plugin's own endpoint (1.0.1.0+) is readable for every
-                    // signed-in user; Jellyfin's plugin configuration endpoint
-                    // is admin-only. Older plugin versions answer 404 there, then
-                    // the admin-only endpoint is used as before.
-                    let config;
-                    try {
-                        config = await ApiClient.getJSON(ApiClient.getUrl('VideoOSDTweaksCandy/ClientConfiguration'));
-                    } catch (endpointErr) {
-                        if (!(endpointErr && endpointErr.status === 404)) throw endpointErr;
-                        config = await ApiClient.getPluginConfiguration(PLUGIN_GUID);
-                    }
+                    // The plugin's own endpoint, readable for every signed-in user.
+                    const config = await ApiClient.getJSON(ApiClient.getUrl('VideoOSDTweaksCandy/ClientConfiguration'));
                     if (config) return config;
+                    throw new Error('empty configuration');
                 } catch (err) {
-                    // 403: the configuration endpoint is admin-only; 404: plugin
-                    // not installed (standalone use). Retrying can't change
+                    // 403: no access; 404: plugin not installed (standalone
+                    // use). Retrying can't change
                     // either, so stop and use the defaults instead of sending
                     // up to 120 failing requests.
                     if (err && (err.status === 403 || err.status === 404)) return null;
-                    // fall through, try again after the delay below
+                    // Server error (5xx), network error or empty answer: at most 3
+                    // retries, 0.5 / 1 / 2 s apart, then the defaults until the next
+                    // fetch (this used to send up to 120 requests in 30 s).
+                    if (++failures > 3) return null;
+                    await new Promise(function (resolve) { setTimeout(resolve, delayMs * Math.pow(2, failures)); });
+                    continue;
                 }
             }
             await new Promise(function (resolve) { setTimeout(resolve, delayMs); });
@@ -249,7 +245,7 @@ function ssIsSupportedPlatform() {
     const sanitize = str =>
         str.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 
-    const getIcon = () => btn?.querySelector('.jvosd-screenshot-icon');
+    const getIcon = () => (btn ? btn.querySelector('.jvosd-screenshot-icon') : null);
 
     const animateSingleShot = () => {
         const icon = getIcon();
@@ -285,7 +281,7 @@ function ssIsSupportedPlatform() {
         if (!window.ApiClient) return null;
         try {
             const ratingBtn = document.querySelector('#videoOsdPage:not(.hide) .btnUserRating');
-            const id = ratingBtn?.dataset?.id;
+            const id = ratingBtn && ratingBtn.dataset ? ratingBtn.dataset.id : undefined;
             if (!id) return null;
 
             const userId = ApiClient.getCurrentUserId();
@@ -306,10 +302,10 @@ function ssIsSupportedPlatform() {
                 originalFilename: originalFilename,
                 name: item.Name || null,
                 seriesName: item.SeriesName || null,
-                // "??" instead of "||": season 0 (specials) and episode 0
+                // "!= null" instead of "||": season 0 (specials) and episode 0
                 // are real numbers, not missing ones.
-                seasonNumber: item.ParentIndexNumber ?? null,
-                episodeNumber: item.IndexNumber ?? null,
+                seasonNumber: item.ParentIndexNumber != null ? item.ParentIndexNumber : null,
+                episodeNumber: item.IndexNumber != null ? item.IndexNumber : null,
                 productionYear: item.ProductionYear || null
             };
         } catch (err) {
@@ -323,14 +319,14 @@ function ssIsSupportedPlatform() {
 
 
         if (CONFIG.filenameSource === 'original') {
-            if (info?.originalFilename) {
+            if (info && info.originalFilename) {
                 return ` - ${sanitize(info.originalFilename)}`;
             }
             // Original filename unavailable -- fall through to library-name approach.
         }
 
         // Library name: try API first, fall back to DOM parsing
-        if (info?.name) {
+        if (info && info.name) {
             const kind = info.kind || 'video';
             const includeYear = kind === 'movie' ? CONFIG.includeYearMovies
                 : kind === 'episode' ? CONFIG.includeYearEpisodes
@@ -338,8 +334,8 @@ function ssIsSupportedPlatform() {
 
             let label;
             if (kind === 'episode' && info.seriesName) {
-                const s = String(info.seasonNumber ?? 1).padStart(2, '0');
-                const e = String(info.episodeNumber ?? 1).padStart(2, '0');
+                const s = String(info.seasonNumber != null ? info.seasonNumber : 1).padStart(2, '0');
+                const e = String(info.episodeNumber != null ? info.episodeNumber : 1).padStart(2, '0');
                 label = `${info.seriesName} - S${s}E${e} - ${info.name}`;
             } else {
                 label = info.name;
@@ -362,7 +358,7 @@ function ssIsSupportedPlatform() {
 
         let text = pageTitleEl.textContent.trim();
 
-        const kind = info?.kind || 'video';
+        const kind = (info && info.kind) || 'video';
         const includeYear = kind === 'movie' ? CONFIG.includeYearMovies
             : kind === 'episode' ? CONFIG.includeYearEpisodes
                 : CONFIG.includeYearVideos;
@@ -565,12 +561,32 @@ function ssIsSupportedPlatform() {
                 }, 250);
             });
 
-            btn.addEventListener('mousedown', event => {
+            // Pointer events where the browser has them: a finger fires
+            // pointerdown when it touches (mousedown only comes after the
+            // finger is lifted), so hold-to-rapid-fire also works by touch.
+            // Browsers without pointer events keep the mouse events.
+            const usePointer = typeof window.PointerEvent === 'function';
+            const downEvent = usePointer ? 'pointerdown' : 'mousedown';
+
+            let lastPointerType = '';
+
+            if (usePointer) {
+                // No scrolling or zoom while the finger holds the button,
+                // and no long-press menu after a touch; a mouse right-click
+                // keeps its normal context menu.
+                btn.style.touchAction = 'none';
+                btn.addEventListener('contextmenu', event => {
+                    if (lastPointerType === 'touch') event.preventDefault();
+                });
+            }
+
+            btn.addEventListener(downEvent, event => {
                 event.preventDefault();
                 event.stopPropagation();
+                lastPointerType = event.pointerType || 'mouse';
 
-                // Left button only: right/middle click used to take shots
-                // and start rapid fire too.
+                // Left button / primary touch only: right/middle click used
+                // to take shots and start rapid fire too.
                 if (event.button !== 0) return;
                 if (autoMode || intervalId) return;
 
@@ -603,8 +619,14 @@ function ssIsSupportedPlatform() {
                 }
             };
 
-            btn.addEventListener('mouseup', stopInterval);
-            btn.addEventListener('mouseleave', stopInterval);
+            if (usePointer) {
+                btn.addEventListener('pointerup', stopInterval);
+                btn.addEventListener('pointerleave', stopInterval);
+                btn.addEventListener('pointercancel', stopInterval);
+            } else {
+                btn.addEventListener('mouseup', stopInterval);
+                btn.addEventListener('mouseleave', stopInterval);
+            }
         }
 
         return btn;
@@ -802,4 +824,40 @@ function ssIsSupportedPlatform() {
         console.error('[VideoOSD Screenshot Button] config apply failed:', err);
     });
     // ---- END PLUGIN ADAPTER ----
-})();
+}
+
+// Phones, tablets and TV devices: this addon stays off there unless the plugin
+// setting "ScreenshotOnTouchAndTvDevices" allows it (the owner's choice, default off). The setting is
+// read from the plugin's own endpoint, which every signed-in user may read.
+function ssAllowedOnThisDevice() {
+  // Signed out (login page) nothing is sent and no timer runs: the check
+  // waits for the first view change ("viewshow") or hash change with a token.
+  return new Promise(function (resolve) {
+    let started = false;
+    const attempt = function () {
+      const api = window.ApiClient;
+      if (started || !api || typeof api.accessToken !== 'function' || !api.accessToken()) return;
+      started = true;
+      document.removeEventListener('viewshow', attempt, true);
+      window.removeEventListener('hashchange', attempt);
+      api.getJSON(api.getUrl('VideoOSDTweaksCandy/ClientConfiguration')).then(function (config) {
+        resolve(!!config && config.ScreenshotOnTouchAndTvDevices === true);
+      }, function () {
+        resolve(false);
+      });
+    };
+    attempt();
+    if (!started) {
+      document.addEventListener('viewshow', attempt, true);
+      window.addEventListener('hashchange', attempt);
+    }
+  });
+}
+
+if (ssIsSupportedPlatform()) {
+    ssMain();
+} else {
+    ssAllowedOnThisDevice().then(function (allowed) {
+        if (allowed) ssMain();
+    });
+}
